@@ -49,6 +49,49 @@ python main.py parse image.png omr.template
 
 Here `image.png` is the scanned OMR image
 
+# Example
+
+Given a OMR sheet like this: ![Sample OMR sheet](./res/samples/omr_with_folds.jpg)
+
+running the script gives a output like so:
+
+```console
+OMR ID: 1234569420
+Exam Code: B2CB1
+Roll Code: 6710298
+2:  B
+3:  A
+4:  D
+5:  C
+6:  A
+7:  B
+9:  D
+10: A
+11: D
+13: A
+14: A
+15: D
+16: B
+17: D
+18: C
+19: B
+20: A
+24: B
+26: D
+28: A
+30: C
+Marks:
+        - Correct:     6
+        - Incorrect:   15
+        - Total marks: 3
+```
+
+Here OMRID is the parsed value of the QR Code. 
+
+The answers are marked using the following marking scheme:
+- Correct:   +3
+- Incorrect: -1
+
 # License
 
 Currently licensed under [GPL3](./LICENSE)
