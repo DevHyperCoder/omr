@@ -1,49 +1,50 @@
+import pickle
 import cv2
 import numpy
 import os
 
 from omr.utils import *
 
-
-def generate_aruco(id: int, path: str):
-    """
-    Command: gen-aruco
-    Generates a ArUco tag of given id and saves to disk
-    """
-    aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-    tag = numpy.zeros((100, 100, 1), dtype="uint8")
-    aruco_dict.generateImageMarker(id, 100, tag, 1)
-    cv2.imwrite(path, tag)
+from omr.cmd.generate import generate_aruco, generate_qrcode
+from omr.cmd.template import template, OMRTemplate
 
 
-def generate_qrcode(data: str, path: str):
-    """
-    Command: gen-qr
-    Generates a QR Code with given data and saves to disk
-    """
-    qr_enc = cv2.QRCodeEncoder()
-    qr_img = qr_enc.encode(data)
-    cv2.imwrite(path, qr_img)
-
-
-def omr(fpath: str, temp_dir: str, answer_key):
+def omr(template_path: str, fpath: str, temp_dir: str, answer_key):
     """
     Command: omr
-    Processes a given OMR sheet image and returns the markings
+    Processes a given OMR sheet image according to template and returns the markings
+
+    Template is used for accurate positioning of bubbles.
     """
+    
+    # Loading the template, exit if unable to load
+    omr_template: OMRTemplate|None = None
+    with open(template_path, "rb") as f:
+        omr_template = pickle.load(f)
+
+    if not omr_template:
+        print("Unable to load omr_template")
+        exit(-1)
 
     img = cv2.imread(fpath)
+    h, w, _ = img.shape
 
     grayscale = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     cv2.imwrite(os.path.join(temp_dir, "grayscale.png"), grayscale)
 
-    markers = get_aruco_codes(grayscale)
+    markers = get_aruco_codes(img)
     if len(markers) == 0:
         print("Not valid OMR. ArUco code not found")
         exit(-1)
 
-    omr_id = get_omr_qr_code(grayscale)
+    a1x,a1y = omr_template.aruco1
+    (tlx,tly),_,_,_ = markers[1].corners
+    A1x, A1y = tlx*100/w, tly*100/h
+    d1x, d1y = a1x - A1x, a1y-A1y
+
+
+    omr_id,qrcorners = get_omr_qr_code(grayscale)
     if not omr_id:
         print("Not valid OMR. QR Code not found")
         exit(-1)
@@ -52,55 +53,64 @@ def omr(fpath: str, temp_dir: str, answer_key):
 
     # thresh
     _, thresh = cv2.threshold(
-        grayscale, 60, 200, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU
+        grayscale, 75, 200, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU
     )
     # thresh = cv2.adaptiveThreshold(blur,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV,23,3)
-    cv2.imwrite(os.path.join(temp_dir, "thresh.png"), thresh)
+    cv2.imwrite(os.path.join(temp_dir, "ot.png"), thresh)
 
-    # thresh = cv2.Canny(grayscale, 60, 200)
-    contours, _ = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(cv2.GaussianBlur(thresh, (9,9), 5), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
-    cntImg = img.copy()
-    cv2.drawContours(cntImg, contours, -1, (0, 255, 255), 3)
-    cv2.imwrite(os.path.join(temp_dir, "contours.png"), cntImg)
+    imh = img.copy()
+    for (wperc,hperc) in omr_template.exam_code:
+        x = int ( wperc*w/100 )
+        y = int ( hperc*h/100 )
+        cv2.rectangle(imh, (x,y), (x+10, y+10), (0,0,255), 6)
 
-    exam_code_bubble_contours: List[MatLike] = []
-    roll_bubble_contours: List[MatLike] = []
-    answer_bubble_contours: List[MatLike] = []
+    print(len(contours))
 
-    height, width, _ = img.shape
-    mid_mark_x = width * 0.5
-    mark_h = height * 0.4
+    exam_contours = []
+    roll_contours = []
+    anws_contours = []
 
-    for idx, c in enumerate(contours):
-        (x, y, w, h) = cv2.boundingRect(c)
-        ratio = w / float(h)
-
-        # signed area
+    for c in contours:
         area = cv2.contourArea(c, True)
 
-        if ratio >= 1.3 and ratio <= 1.7 and w > 30 and w < 120:
-            if area < 0:
-                if y > mark_h:
-                    answer_bubble_contours.append(c)
-                elif x > mid_mark_x:
-                    roll_bubble_contours.append(c)
-                elif x < mid_mark_x:
-                    exam_code_bubble_contours.append(c)
+        if area < 0:
+            (_,_,cw,ch) = cv2.boundingRect(c)
+            ratio = cw/ch
+            if ratio>=1.3 and ratio <= 1.7 and cw>30 and cw<130:
+                for (wperc,hperc) in omr_template.exam_code:
+                    x = int ( wperc*w/100 )
+                    y = int ( hperc*h/100 )
+                    if cv2.pointPolygonTest(c, (x,y),False) >= 0.0:
+                        exam_contours.append(c)
+                for (wperc,hperc) in omr_template.roll:
+                    x = int ( wperc*w/100 )
+                    y = int ( hperc*h/100 )
+                    if cv2.pointPolygonTest(c, (x,y),False) >= 0.0:
+                        roll_contours.append(c)
 
-    sorted_exam_code_boundaries = sort_bounding_boxes(exam_code_bubble_contours)
-    sorted_roll_boundaries = sort_bounding_boxes(roll_bubble_contours)
-    sorted_answer_bubble_boundingboxes = sort_bounding_boxes(answer_bubble_contours)
+                for (wperc,hperc) in omr_template.answers:
+                    x = int ( wperc*w/100 )
+                    y = int ( (hperc-d1y)*h/100 )
+                    if cv2.pointPolygonTest(c, (x,y),False) >= 0.0:
+                        anws_contours.append(c)
 
-    # bubble finding
-    exam_code_bubbles = get_marked_bubbles(sorted_exam_code_boundaries, thresh)
-    roll_bubbles = get_marked_bubbles(sorted_roll_boundaries, thresh)
-    answer_bubbles = get_marked_bubbles(sorted_answer_bubble_boundingboxes, thresh)
+    print(len(exam_contours))
+    print(len(roll_contours))
+    print(len(anws_contours))
+    cv2.drawContours(imh, exam_contours, -1, (0,0,255),3)
+    cv2.drawContours(imh, roll_contours, -1, (0,255,255),3)
+    cv2.drawContours(imh, anws_contours, -1, (255,0,255),3)
+
+    cv2.imwrite(os.path.join(temp_dir, "imh.png"), imh)
+
+    marked_omr_bubbles = MarkedOMRBubbles( thresh, exam_contours, roll_contours, anws_contours)
 
     # {qno: ans}
     markings = {}
 
-    for idx in answer_bubbles:
+    for idx in marked_omr_bubbles.answer_bubbles:
         row = idx // 12
         col = idx % 12
 
@@ -111,14 +121,14 @@ def omr(fpath: str, temp_dir: str, answer_key):
         markings[qno] = choice
 
     exam_code_comps = ["", "", "", "", ""]
-    for idx in exam_code_bubbles:
+    for idx in marked_omr_bubbles.exam_code_bubbles:
         row = idx // 5
         col = idx % 5
         exam_code_comps[col] = {0: "A", 1: "B", 2: "C", 3: "1", 4: "2"}[row]
     exam_code = "".join(exam_code_comps)
 
     roll_comps = [""] * 7
-    for idx in roll_bubbles:
+    for idx in marked_omr_bubbles.roll_bubbles:
         row = idx // 7
         col = idx % 7
 
