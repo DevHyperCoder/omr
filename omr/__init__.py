@@ -16,9 +16,9 @@ def omr(template_path: str, fpath: str, temp_dir: str, answer_key):
 
     Template is used for accurate positioning of bubbles.
     """
-    
+
     # Loading the template, exit if unable to load
-    omr_template: OMRTemplate|None = None
+    omr_template: OMRTemplate | None = None
     with open(template_path, "rb") as f:
         omr_template = pickle.load(f)
 
@@ -31,19 +31,17 @@ def omr(template_path: str, fpath: str, temp_dir: str, answer_key):
 
     grayscale = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-
     markers = get_aruco_codes(img)
     if len(markers) == 0:
         print("Not valid OMR. ArUco code not found")
         exit(-1)
 
-    a1x,a1y = omr_template.aruco1
-    (tlx,tly),_,_,_ = markers[1].corners
-    A1x, A1y = tlx*100/w, tly*100/h
-    _, d1y = a1x - A1x, a1y-A1y
+    a1x, a1y = omr_template.aruco1
+    (tlx, tly), _, _, _ = markers[1].corners
+    A1x, A1y = tlx * 100 / w, tly * 100 / h
+    _, d1y = a1x - A1x, a1y - A1y
 
-
-    omr_id,_ = get_omr_qr_code(grayscale)
+    omr_id, _ = get_omr_qr_code(grayscale)
     if not omr_id:
         print("Not valid OMR. QR Code not found")
         exit(-1)
@@ -55,7 +53,9 @@ def omr(template_path: str, fpath: str, temp_dir: str, answer_key):
         grayscale, 75, 200, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU
     )
 
-    contours, _ = cv2.findContours(cv2.GaussianBlur(thresh, (9,9), 5), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(
+        cv2.GaussianBlur(thresh, (9, 9), 5), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
+    )
 
     exam_contours = []
     roll_contours = []
@@ -65,32 +65,33 @@ def omr(template_path: str, fpath: str, temp_dir: str, answer_key):
         area = cv2.contourArea(c, True)
 
         if area < 0:
-            (_,_,cw,ch) = cv2.boundingRect(c)
-            ratio = cw/ch
-            if ratio>=1.3 and ratio <= 1.7 and cw>30 and cw<130:
-                for (wperc,hperc) in omr_template.exam_code:
-                    x = int ( wperc*w/100 )
-                    y = int ( hperc*h/100 )
-                    if cv2.pointPolygonTest(c, (x,y),False) >= 0.0:
+            (_, _, cw, ch) = cv2.boundingRect(c)
+            ratio = cw / ch
+            if ratio >= 1.3 and ratio <= 1.7 and cw > 30 and cw < 130:
+                for wperc, hperc in omr_template.exam_code:
+                    x = int(wperc * w / 100)
+                    y = int(hperc * h / 100)
+                    if cv2.pointPolygonTest(c, (x, y), False) >= 0.0:
                         exam_contours.append(c)
-                for (wperc,hperc) in omr_template.roll:
-                    x = int ( wperc*w/100 )
-                    y = int ( hperc*h/100 )
-                    if cv2.pointPolygonTest(c, (x,y),False) >= 0.0:
+                for wperc, hperc in omr_template.roll:
+                    x = int(wperc * w / 100)
+                    y = int(hperc * h / 100)
+                    if cv2.pointPolygonTest(c, (x, y), False) >= 0.0:
                         roll_contours.append(c)
 
-                for (wperc,hperc) in omr_template.answers:
-                    x = int ( wperc*w/100 )
-                    y = int ( (hperc-d1y)*h/100 )
-                    if cv2.pointPolygonTest(c, (x,y),False) >= 0.0:
+                for wperc, hperc in omr_template.answers:
+                    x = int(wperc * w / 100)
+                    y = int((hperc - d1y) * h / 100)
+                    if cv2.pointPolygonTest(c, (x, y), False) >= 0.0:
                         anws_contours.append(c)
 
-    assert len(exam_contours) == 25,    "25 Exam code bubbles not found!"
-    assert len(roll_contours) == 70,    "70 Roll code bubbles not found!"
-    assert len(anws_contours) == 30*4, "120 Answer code bubbles not found!"
+    assert len(exam_contours) == 25, "25 Exam code bubbles not found!"
+    assert len(roll_contours) == 70, "70 Roll code bubbles not found!"
+    assert len(anws_contours) == 30 * 4, "120 Answer code bubbles not found!"
 
-
-    marked_omr_bubbles = MarkedOMRBubbles( thresh, exam_contours, roll_contours, anws_contours)
+    marked_omr_bubbles = MarkedOMRBubbles(
+        thresh, exam_contours, roll_contours, anws_contours
+    )
 
     # {qno: ans}
     markings = {}

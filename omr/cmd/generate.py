@@ -1,6 +1,7 @@
 import cv2
 import numpy
 
+
 def generate_aruco(id: int, path: str):
     """
     Command: gen-aruco
@@ -20,4 +21,3 @@ def generate_qrcode(data: str, path: str):
     qr_enc = cv2.QRCodeEncoder()
     qr_img = qr_enc.encode(data)
     cv2.imwrite(path, qr_img)
-

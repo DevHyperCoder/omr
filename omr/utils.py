@@ -4,9 +4,10 @@ from cv2.typing import MatLike, Rect
 from typing import Any, List
 
 
-
-def rename(bbox:List[Any], w,h):
-    return [(((x+bw/2)/w)*100,((y+bh/2)/h)*100) for x,y,bw,bh in bbox]
+def rename(bbox: List[Any], w, h):
+    return [
+        (((x + bw / 2) / w) * 100, ((y + bh / 2) / h) * 100) for x, y, bw, bh in bbox
+    ]
 
 
 class MarkedOMRBubbles:
@@ -16,7 +17,8 @@ class MarkedOMRBubbles:
             for cnt in [exam_code_contours, roll_contours, answer_contours]
         ]
 
-def get_bubble_contours(contours,w,h):
+
+def get_bubble_contours(contours, w, h):
     """
     Groups the given contours
     """
@@ -47,7 +49,11 @@ def get_bubble_contours(contours,w,h):
 
 
 def get_marked_omr_bubbles(img, contours, w, h):
-    exam_code_bubble_contours, roll_bubble_contours, answer_bubble_contours = get_bubble_contours(contours, w,h)
+    (
+        exam_code_bubble_contours,
+        roll_bubble_contours,
+        answer_bubble_contours,
+    ) = get_bubble_contours(contours, w, h)
 
     return MarkedOMRBubbles(
         img, exam_code_bubble_contours, roll_bubble_contours, answer_bubble_contours
@@ -59,10 +65,9 @@ class Marker:
         self.id = id
         self.corners = corners
 
-
     def __repr__(self):
-        tl, _,_,_ = self.corners
-        return f'ArUco marker: {self.id} @ {tl}'
+        tl, _, _, _ = self.corners
+        return f"ArUco marker: {self.id} @ {tl}"
 
 
 def get_aruco_codes(img: MatLike) -> List[Marker]:
@@ -88,7 +93,7 @@ def get_omr_qr_code(img: MatLike) -> tuple[str, Any]:
     """
     qr_det = cv2.QRCodeDetector()
     data = qr_det.detectAndDecode(img)
-    return (data[0],data[1].reshape((4,2)))
+    return (data[0], data[1].reshape((4, 2)))
 
 
 def sort_bounding_boxes(contours) -> List[Rect]:
