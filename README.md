@@ -13,20 +13,23 @@ ArUco markers.
 
 # How to run ?
 
-
 You need to install `opencv-python` and `numpy`
 
 ## Trying with given samples:
+
+Samples are located in the [samples directory](./res/samples/)
 
 ```console
 # Generating template
 python main.py template res/omr.png res/omr.template
 
 # Parsing a sample OMR
-python main.py parse res/sample1.jpg res/omr.template
+python main.py parse res/samples/omr_with_bubbles.jpg res/omr.template
+
+# Parsing a sample OMR with some folds
+python main.py parse res/samples/omr_with_folds.jpg res/omr.template
 ```
 
-A few sample images are provided in res/
 
 ## Generating template:
 
@@ -34,7 +37,7 @@ A few sample images are provided in res/
 python main.py template omr.png omr.template
 ```
 
-Here `omr.png` is a "soft-copy" of the OMR sheet (designed in Inkscape), `omr.template` will contain the relative positions of markers on the OMR (QRCode and the 2 ArUco codes) and bubbles.
+Here `omr.png` is a "soft-copy" of the OMR sheet, `omr.template` will contain the relative positions of markers on the OMR (QRCode and the 2 ArUco codes) and bubbles.
 
 > NOTE: You can print `omr.png` in a A4 sized paper, fill it out and scan it in 300 dpi (2580x3507) for parsing. Automatic resizing of scanned images is being worked on.
 

@@ -31,7 +31,6 @@ def omr(template_path: str, fpath: str, temp_dir: str, answer_key):
 
     grayscale = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    cv2.imwrite(os.path.join(temp_dir, "grayscale.png"), grayscale)
 
     markers = get_aruco_codes(img)
     if len(markers) == 0:
@@ -41,10 +40,10 @@ def omr(template_path: str, fpath: str, temp_dir: str, answer_key):
     a1x,a1y = omr_template.aruco1
     (tlx,tly),_,_,_ = markers[1].corners
     A1x, A1y = tlx*100/w, tly*100/h
-    d1x, d1y = a1x - A1x, a1y-A1y
+    _, d1y = a1x - A1x, a1y-A1y
 
 
-    omr_id,qrcorners = get_omr_qr_code(grayscale)
+    omr_id,_ = get_omr_qr_code(grayscale)
     if not omr_id:
         print("Not valid OMR. QR Code not found")
         exit(-1)
@@ -55,18 +54,8 @@ def omr(template_path: str, fpath: str, temp_dir: str, answer_key):
     _, thresh = cv2.threshold(
         grayscale, 75, 200, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU
     )
-    # thresh = cv2.adaptiveThreshold(blur,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV,23,3)
-    cv2.imwrite(os.path.join(temp_dir, "ot.png"), thresh)
 
     contours, _ = cv2.findContours(cv2.GaussianBlur(thresh, (9,9), 5), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-
-    imh = img.copy()
-    for (wperc,hperc) in omr_template.exam_code:
-        x = int ( wperc*w/100 )
-        y = int ( hperc*h/100 )
-        cv2.rectangle(imh, (x,y), (x+10, y+10), (0,0,255), 6)
-
-    print(len(contours))
 
     exam_contours = []
     roll_contours = []
@@ -96,14 +85,10 @@ def omr(template_path: str, fpath: str, temp_dir: str, answer_key):
                     if cv2.pointPolygonTest(c, (x,y),False) >= 0.0:
                         anws_contours.append(c)
 
-    print(len(exam_contours))
-    print(len(roll_contours))
-    print(len(anws_contours))
-    cv2.drawContours(imh, exam_contours, -1, (0,0,255),3)
-    cv2.drawContours(imh, roll_contours, -1, (0,255,255),3)
-    cv2.drawContours(imh, anws_contours, -1, (255,0,255),3)
+    assert len(exam_contours) == 25,    "25 Exam code bubbles not found!"
+    assert len(roll_contours) == 70,    "70 Roll code bubbles not found!"
+    assert len(anws_contours) == 30*4, "120 Answer code bubbles not found!"
 
-    cv2.imwrite(os.path.join(temp_dir, "imh.png"), imh)
 
     marked_omr_bubbles = MarkedOMRBubbles( thresh, exam_contours, roll_contours, anws_contours)
 
